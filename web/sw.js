@@ -1,4 +1,4 @@
-const CACHE_NAME = 'namchon-tetris-v4';
+const CACHE_NAME = 'namchon-tetris-v5';
 const ASSETS = [
   './',
   './index.html',

@@ -95,7 +95,7 @@ function drawBlock(ctx, x, y, size, color, highlighted = false) {
   }
 }
 
-const WATERMARK_TEXT = '남촌';
+const WATERMARK_TEXT = 'NAMCHON';
 const WATERMARK_FONT = '"Nanum Brush Script", "Segoe Script", cursive';
 
 function loadWatermarkFont() {
@@ -107,11 +107,16 @@ function loadWatermarkFont() {
   }).catch(() => {});
 }
 
-// Faint doubled brush-script watermark in the middle of the board.
+// Faint doubled script watermark in the middle of the board.
 function drawWatermark(ctx, width, height) {
-  const fontSize = Math.min(width * 0.42, height * 0.22);
-
   ctx.save();
+
+  // Size the text so it spans ~90% of the board width regardless of font.
+  const trial = 100;
+  ctx.font = `${trial}px ${WATERMARK_FONT}`;
+  const measured = ctx.measureText(WATERMARK_TEXT).width || trial;
+  const fontSize = Math.min(((width * 0.9) / measured) * trial, height * 0.16);
+
   ctx.translate(width / 2, height / 2);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -119,16 +124,16 @@ function drawWatermark(ctx, width, height) {
 
   // Back layer: slightly offset, rotated and larger — the "double" stroke.
   ctx.save();
-  ctx.rotate(-0.12);
-  ctx.globalAlpha = 0.045;
+  ctx.rotate(-0.1);
+  ctx.globalAlpha = 0.05;
   ctx.fillStyle = '#9ecfff';
   ctx.font = `${fontSize * 1.12}px ${WATERMARK_FONT}`;
-  ctx.fillText(WATERMARK_TEXT, fontSize * 0.05, fontSize * 0.06);
+  ctx.fillText(WATERMARK_TEXT, fontSize * 0.06, fontSize * 0.1);
   ctx.restore();
 
   // Front layer.
-  ctx.rotate(-0.05);
-  ctx.globalAlpha = 0.09;
+  ctx.rotate(-0.04);
+  ctx.globalAlpha = 0.1;
   ctx.fillStyle = '#ffffff';
   ctx.fillText(WATERMARK_TEXT, 0, 0);
 
