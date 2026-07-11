@@ -2,6 +2,26 @@
 
 iOS 연습용 모바일 테트리스 앱 + **Windows/브라우저용 웹 버전** + **아이폰 홈 화면 웹앱**
 
+## GitHub Pages 배포 (온라인 주소로 실행)
+
+`web/` 폴더를 GitHub Actions로 자동 배포합니다.
+
+### 1회 설정
+
+1. 이 PR을 `main`에 머지합니다.
+2. 저장소 **Settings → Pages** 로 이동합니다.
+3. **Build and deployment → Source** 에서 **GitHub Actions** 를 선택합니다.
+4. **Actions** 탭에서 `Deploy GitHub Pages` 워크플로가 성공했는지 확인합니다.
+   - 안 돌았으면 Actions에서 해당 워크플로 → **Run workflow** 로 수동 실행합니다.
+
+배포가 끝나면 아래 주소로 접속할 수 있습니다.
+
+```
+https://namchon01.github.io/namchon-tetris/
+```
+
+아이폰 Safari에서 위 주소를 연 뒤, **공유 → 홈 화면에 추가** 하면 앱처럼 실행됩니다.
+
 ## 웹 버전 실행 (Windows, Mac, 아이폰, 아이패드)
 
 Mac 없이 브라우저에서 바로 플레이할 수 있습니다.
@@ -92,14 +112,15 @@ http://<PC의-IP>:8080
 
 ```
 namchon-tetris/
-├── web/              ← 브라우저·아이폰 웹앱
+├── .github/workflows/  ← GitHub Pages 자동 배포
+├── web/                ← 브라우저·아이폰 웹앱
 │   ├── index.html
 │   ├── manifest.webmanifest
 │   ├── sw.js
 │   ├── icons/
 │   ├── css/
 │   └── js/
-└── NamchonTetris/    ← iOS 앱 (Mac + Xcode)
+└── NamchonTetris/      ← iOS 앱 (Mac + Xcode)
 ```
 
 ## 요구 사항
