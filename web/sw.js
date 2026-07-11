@@ -1,10 +1,12 @@
-const CACHE_NAME = 'namchon-tetris-v1';
+const CACHE_NAME = 'namchon-tetris-v2';
 const ASSETS = [
   './',
   './index.html',
   './css/style.css',
   './js/app.js',
+  './js/audio.js',
   './js/board.js',
+  './js/effects.js',
   './js/gameEngine.js',
   './js/tetromino.js',
   './manifest.webmanifest',

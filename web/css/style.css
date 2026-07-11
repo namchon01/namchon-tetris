@@ -169,8 +169,13 @@ body {
 
 .actions {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr auto;
   gap: 12px;
+}
+
+.action-btn.sound {
+  min-width: 52px;
+  font-size: 1rem;
 }
 
 .action-btn {
@@ -184,6 +189,19 @@ body {
   background: #ffffff;
   color: #111111;
   border-color: #ffffff;
+}
+
+@keyframes body-flash {
+  0% {
+    background: #2c2c4a;
+  }
+  100% {
+    background: var(--bg);
+  }
+}
+
+body.flash {
+  animation: body-flash 0.45s ease-out;
 }
 
 .overlay {

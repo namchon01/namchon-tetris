@@ -17,14 +17,15 @@ function createScoreState() {
 }
 
 function addLines(scoreState, count) {
-  if (count <= 0) return;
+  if (count <= 0) return 0;
 
   const pointsByCount = { 1: 100, 2: 300, 3: 500, 4: 800 };
-  const points = pointsByCount[count] ?? 100 * count;
+  const points = (pointsByCount[count] ?? 100 * count) * scoreState.level;
 
-  scoreState.score += points * scoreState.level;
+  scoreState.score += points;
   scoreState.linesCleared += count;
   scoreState.level = 1 + Math.floor(scoreState.linesCleared / 10);
+  return points;
 }
 
 export class GameEngine {
@@ -38,6 +39,7 @@ export class GameEngine {
     this.nextPieceType = randomType();
     this.phase = 'playing';
     this.scoreState = createScoreState();
+    this.events = [];
     this.spawnNextPiece();
   }
 
@@ -45,6 +47,16 @@ export class GameEngine {
     const base = 1000;
     const reduction = (this.scoreState.level - 1) * 80;
     return Math.max(80, base - reduction);
+  }
+
+  emit(event) {
+    this.events.push(event);
+  }
+
+  consumeEvents() {
+    const events = this.events;
+    this.events = [];
+    return events;
   }
 
   togglePause() {
@@ -61,20 +73,25 @@ export class GameEngine {
   }
 
   moveLeft() {
-    return this.performMove((piece) => movePiece(piece, 0, -1));
+    const moved = this.performMove((piece) => movePiece(piece, 0, -1));
+    if (moved) this.emit({ type: 'move' });
+    return moved;
   }
 
   moveRight() {
-    return this.performMove((piece) => movePiece(piece, 0, 1));
+    const moved = this.performMove((piece) => movePiece(piece, 0, 1));
+    if (moved) this.emit({ type: 'move' });
+    return moved;
   }
 
-  moveDown() {
+  moveDown({ soft = false } = {}) {
     if (!this.activePiece) return false;
 
     const moved = movePiece(this.activePiece, 1, 0);
     if (isValid(moved, this.board)) {
       this.activePiece = moved;
       this.scoreState.score += 1;
+      if (soft) this.emit({ type: 'softDrop' });
       return true;
     }
 
@@ -90,6 +107,7 @@ export class GameEngine {
       const candidate = movePiece(rotated, dRow, dCol);
       if (isValid(candidate, this.board)) {
         this.activePiece = candidate;
+        this.emit({ type: 'rotate' });
         return true;
       }
     }
@@ -115,6 +133,7 @@ export class GameEngine {
 
     this.activePiece = piece;
     this.scoreState.score += droppedRows * 2;
+    this.emit({ type: 'hardDrop', rows: droppedRows });
     this.lockPiece();
   }
 
@@ -133,17 +152,59 @@ export class GameEngine {
     } else {
       this.activePiece = null;
       this.phase = 'gameOver';
+      this.emit({ type: 'gameOver' });
     }
   }
 
   lockPiece() {
     if (!this.activePiece) return;
 
+    const lockedPositions = absolutePositions(this.activePiece);
     this.board = placePiece(this.board, this.activePiece);
+
+    const fullRows = [];
+    this.board.forEach((row, index) => {
+      if (row.every((cell) => cell !== null)) fullRows.push(index);
+    });
+    const boardBeforeClear = this.board.map((row) => [...row]);
+
     const result = clearLines(this.board);
     this.board = result.board;
-    addLines(this.scoreState, result.cleared);
+
+    const levelBefore = this.scoreState.level;
+    const points = addLines(this.scoreState, result.cleared);
+
+    this.emit({ type: 'lock', positions: lockedPositions });
+
+    if (result.cleared > 0) {
+      this.emit({
+        type: 'lineClear',
+        count: result.cleared,
+        rows: fullRows,
+        points,
+        boardBeforeClear,
+      });
+    }
+
+    if (this.scoreState.level > levelBefore) {
+      this.emit({ type: 'levelUp', level: this.scoreState.level });
+    }
+
     this.spawnNextPiece();
+  }
+
+  getGhostPositions() {
+    if (!this.activePiece) return [];
+
+    let piece = this.activePiece;
+    while (true) {
+      const moved = movePiece(piece, 1, 0);
+      if (!isValid(moved, this.board)) break;
+      piece = moved;
+    }
+
+    if (piece === this.activePiece) return [];
+    return absolutePositions(piece);
   }
 
   getRenderCells() {
