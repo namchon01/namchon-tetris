@@ -67,7 +67,7 @@ body {
 
 #board {
   width: 100%;
-  max-width: min(360px, 72vh, 88dvw);
+  max-width: min(420px, 80vh, 92dvw);
   max-height: 100%;
   aspect-ratio: 10 / 20;
   border-radius: 8px;
@@ -79,51 +79,66 @@ body {
 .panel {
   flex-shrink: 0;
   background: var(--panel);
-  padding: 12px 16px calc(12px + var(--safe-bottom));
+  padding: 6px 12px calc(6px + var(--safe-bottom));
   border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .panel-header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.title-block {
+  display: flex;
+  align-items: center;
   gap: 12px;
-  margin-bottom: 14px;
 }
 
 .title-block h1 {
-  margin: 0 0 8px;
-  font-size: 1.1rem;
+  margin: 0;
+  font-size: 0.9rem;
   font-weight: 800;
   letter-spacing: 0.06em;
 }
 
 .stats {
   display: flex;
-  gap: 16px;
+  gap: 12px;
 }
 
-.stat,
-.next-block {
+.stat {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 0;
+}
+
+.next-block {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
 }
 
 .label {
-  font-size: 0.65rem;
+  font-size: 0.6rem;
   color: var(--muted);
   letter-spacing: 0.04em;
+  line-height: 1.1;
 }
 
 .value {
-  font-size: 0.95rem;
+  font-size: 0.85rem;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+  line-height: 1.15;
 }
 
 #next-piece {
-  margin-top: 4px;
+  width: 40px;
+  height: 40px;
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.05);
 }
@@ -131,8 +146,8 @@ body {
 .controls {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: 10px;
-  margin-bottom: 12px;
+  gap: 8px;
+  margin-bottom: 6px;
 }
 
 .control-btn,
@@ -149,8 +164,8 @@ body {
 }
 
 .control-btn {
-  min-height: 56px;
-  height: clamp(52px, 8dvh, 64px);
+  min-height: 48px;
+  height: clamp(46px, 6.5dvh, 56px);
   font-size: 1.15rem;
 }
 
@@ -170,18 +185,18 @@ body {
 .actions {
   display: grid;
   grid-template-columns: 1fr 1fr auto;
-  gap: 12px;
+  gap: 8px;
 }
 
 .action-btn.sound {
-  min-width: 52px;
+  min-width: 48px;
   font-size: 1rem;
 }
 
 .action-btn {
-  min-height: 44px;
-  padding: 12px;
-  font-size: 0.75rem;
+  min-height: 40px;
+  padding: 8px;
+  font-size: 0.72rem;
   letter-spacing: 0.04em;
 }
 
@@ -248,17 +263,17 @@ body.flash {
 
 @media (max-height: 700px) {
   .panel {
-    padding-top: 10px;
-    padding-bottom: calc(10px + var(--safe-bottom));
+    padding-top: 4px;
+    padding-bottom: calc(4px + var(--safe-bottom));
   }
 
   .panel-header {
-    margin-bottom: 10px;
+    margin-bottom: 4px;
   }
 
   .control-btn {
-    min-height: 48px;
-    height: 48px;
+    min-height: 44px;
+    height: 44px;
   }
 
   .board-section {
@@ -283,6 +298,6 @@ body.flash {
 
 @media (display-mode: standalone) {
   .panel {
-    padding-bottom: calc(16px + var(--safe-bottom));
+    padding-bottom: calc(8px + var(--safe-bottom));
   }
 }

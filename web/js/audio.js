@@ -5,29 +5,65 @@ class SoundManager {
     this.ctx = null;
     this.muted = localStorage.getItem(STORAGE_KEY) === '1';
     this.unlocked = false;
+
+    // Ask iOS Safari to treat us like a media app so the silent (ringer)
+    // switch does not mute Web Audio output.
+    try {
+      if (navigator.audioSession) {
+        navigator.audioSession.type = 'playback';
+      }
+    } catch {
+      // Older browsers: ignore.
+    }
   }
 
-  // iOS Safari requires AudioContext creation/resume inside a user gesture.
+  // Must be called from inside a user gesture (touch/click/key) at least once.
   unlock() {
     if (!this.ctx) {
       const Ctx = window.AudioContext || window.webkitAudioContext;
       if (!Ctx) return;
       this.ctx = new Ctx();
     }
-    if (this.ctx.state === 'suspended') {
+
+    if (this.ctx.state === 'suspended' || this.ctx.state === 'interrupted') {
       this.ctx.resume();
     }
-    this.unlocked = true;
+
+    if (!this.unlocked) {
+      // Play a tiny silent buffer synchronously inside the gesture —
+      // required by iOS Safari to actually enable audio output.
+      try {
+        const buffer = this.ctx.createBuffer(1, 1, 22050);
+        const source = this.ctx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(this.ctx.destination);
+        source.start(0);
+        this.unlocked = true;
+      } catch {
+        // Retry on the next gesture.
+      }
+    }
+  }
+
+  ready() {
+    if (this.muted || !this.ctx) return false;
+    // iOS can re-suspend the context (e.g. after backgrounding);
+    // kick a resume and still schedule — queued sounds play once running.
+    if (this.ctx.state !== 'running') {
+      this.ctx.resume();
+    }
+    return true;
   }
 
   toggleMute() {
     this.muted = !this.muted;
     localStorage.setItem(STORAGE_KEY, this.muted ? '1' : '0');
+    if (!this.muted) this.unlock();
     return this.muted;
   }
 
   tone({ freq = 440, duration = 0.08, type = 'square', volume = 0.16, delay = 0, slideTo = null }) {
-    if (this.muted || !this.ctx || this.ctx.state !== 'running') return;
+    if (!this.ready()) return;
 
     const t0 = this.ctx.currentTime + delay;
     const osc = this.ctx.createOscillator();
@@ -49,7 +85,7 @@ class SoundManager {
   }
 
   noise({ duration = 0.15, volume = 0.2, delay = 0 }) {
-    if (this.muted || !this.ctx || this.ctx.state !== 'running') return;
+    if (!this.ready()) return;
 
     const t0 = this.ctx.currentTime + delay;
     const length = Math.floor(this.ctx.sampleRate * duration);

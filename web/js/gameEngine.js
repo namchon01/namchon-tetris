@@ -193,20 +193,6 @@ export class GameEngine {
     this.spawnNextPiece();
   }
 
-  getGhostPositions() {
-    if (!this.activePiece) return [];
-
-    let piece = this.activePiece;
-    while (true) {
-      const moved = movePiece(piece, 1, 0);
-      if (!isValid(moved, this.board)) break;
-      piece = moved;
-    }
-
-    if (piece === this.activePiece) return [];
-    return absolutePositions(piece);
-  }
-
   getRenderCells() {
     const cells = this.board.map((row) => [...row]);
 
