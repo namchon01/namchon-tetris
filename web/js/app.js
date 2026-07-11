@@ -80,19 +80,6 @@ function drawBlock(ctx, x, y, size, color, highlighted = false) {
   }
 }
 
-function drawGhostBlock(ctx, x, y, size, color) {
-  const padding = 1.5;
-  const radius = Math.max(2, size * 0.12);
-
-  ctx.strokeStyle = color;
-  ctx.globalAlpha = 0.35;
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.roundRect(x + padding, y + padding, size - padding * 2, size - padding * 2, radius);
-  ctx.stroke();
-  ctx.globalAlpha = 1;
-}
-
 function renderBoard() {
   const width = boardCanvas.clientWidth;
   const height = boardCanvas.clientHeight;
@@ -115,15 +102,6 @@ function renderBoard() {
       boardCtx.beginPath();
       boardCtx.roundRect(x + 1, y + 1, cellWidth - 2, cellHeight - 2, 2);
       boardCtx.fill();
-    }
-  }
-
-  if (engine.activePiece) {
-    const ghostColor = TETROMINO_COLORS[engine.activePiece.type];
-    for (const [row, col] of engine.getGhostPositions()) {
-      if (row >= 0 && row < BOARD_ROWS && col >= 0 && col < BOARD_COLS) {
-        drawGhostBlock(boardCtx, col * cellWidth, row * cellHeight, cellWidth, ghostColor);
-      }
     }
   }
 
@@ -380,6 +358,28 @@ function bindKeyboard() {
   });
 }
 
+function bindAudioUnlock() {
+  // iOS Safari only enables audio from inside a user gesture. touchend is
+  // the most reliable unlock event; keep listening until it succeeds.
+  const tryUnlock = () => {
+    sound.unlock();
+    if (sound.unlocked) {
+      document.removeEventListener('touchend', tryUnlock);
+      document.removeEventListener('pointerup', tryUnlock);
+    }
+  };
+
+  document.addEventListener('touchend', tryUnlock);
+  document.addEventListener('pointerup', tryUnlock);
+
+  // Coming back from background can leave the context suspended.
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && sound.ctx && sound.ctx.state !== 'running') {
+      sound.ctx.resume();
+    }
+  });
+}
+
 function bindMobileGuards() {
   // Stop Safari rubber-band scroll while playing
   document.addEventListener(
@@ -443,6 +443,7 @@ window.addEventListener('resize', resizeBoard);
 
 bindControlButtons();
 bindKeyboard();
+bindAudioUnlock();
 bindMobileGuards();
 registerServiceWorker();
 resizeBoard();
