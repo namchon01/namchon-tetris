@@ -3,6 +3,21 @@ import { BOARD_ROWS, BOARD_COLS, BASE_OFFSETS, TETROMINO_COLORS } from './tetrom
 import { sound } from './audio.js';
 import { EffectsManager } from './effects.js';
 
+// roundRect is missing on older Android WebView/Chrome (<99); without this
+// the whole board fails to draw there.
+if (!CanvasRenderingContext2D.prototype.roundRect) {
+  CanvasRenderingContext2D.prototype.roundRect = function roundRect(x, y, w, h, r) {
+    const radius = Math.min(typeof r === 'number' ? r : r?.[0] ?? 0, w / 2, h / 2);
+    this.moveTo(x + radius, y);
+    this.arcTo(x + w, y, x + w, y + h, radius);
+    this.arcTo(x + w, y + h, x, y + h, radius);
+    this.arcTo(x, y + h, x, y, radius);
+    this.arcTo(x, y, x + w, y, radius);
+    this.closePath();
+    return this;
+  };
+}
+
 const boardCanvas = document.getElementById('board');
 const nextCanvas = document.getElementById('next-piece');
 const boardCtx = boardCanvas.getContext('2d');
@@ -80,6 +95,46 @@ function drawBlock(ctx, x, y, size, color, highlighted = false) {
   }
 }
 
+const WATERMARK_TEXT = '남촌';
+const WATERMARK_FONT = '"Nanum Brush Script", "Segoe Script", cursive';
+
+function loadWatermarkFont() {
+  if (!document.fonts?.load) return;
+  // Canvas text does not trigger webfont loading, so load it explicitly
+  // and repaint once the brush font is available.
+  document.fonts.load(`80px ${WATERMARK_FONT}`, WATERMARK_TEXT).then(() => {
+    render();
+  }).catch(() => {});
+}
+
+// Faint doubled brush-script watermark in the middle of the board.
+function drawWatermark(ctx, width, height) {
+  const fontSize = Math.min(width * 0.42, height * 0.22);
+
+  ctx.save();
+  ctx.translate(width / 2, height / 2);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = `${fontSize}px ${WATERMARK_FONT}`;
+
+  // Back layer: slightly offset, rotated and larger — the "double" stroke.
+  ctx.save();
+  ctx.rotate(-0.12);
+  ctx.globalAlpha = 0.045;
+  ctx.fillStyle = '#9ecfff';
+  ctx.font = `${fontSize * 1.12}px ${WATERMARK_FONT}`;
+  ctx.fillText(WATERMARK_TEXT, fontSize * 0.05, fontSize * 0.06);
+  ctx.restore();
+
+  // Front layer.
+  ctx.rotate(-0.05);
+  ctx.globalAlpha = 0.09;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(WATERMARK_TEXT, 0, 0);
+
+  ctx.restore();
+}
+
 function renderBoard() {
   const width = boardCanvas.clientWidth;
   const height = boardCanvas.clientHeight;
@@ -104,6 +159,8 @@ function renderBoard() {
       boardCtx.fill();
     }
   }
+
+  drawWatermark(boardCtx, width, height);
 
   for (let row = 0; row < BOARD_ROWS; row += 1) {
     for (let col = 0; col < BOARD_COLS; col += 1) {
@@ -164,6 +221,15 @@ function updateUI() {
   renderNextPiece();
 }
 
+// Haptic feedback on devices that support it (mostly Android).
+function vibrate(pattern) {
+  try {
+    navigator.vibrate?.(pattern);
+  } catch {
+    // Some browsers throw outside user gestures; ignore.
+  }
+}
+
 function handleEvents() {
   for (const event of engine.consumeEvents()) {
     switch (event.type) {
@@ -178,6 +244,7 @@ function handleEvents() {
         break;
       case 'hardDrop':
         sound.hardDrop();
+        vibrate(15);
         if (event.rows >= 4) effects.shake(4, 180);
         break;
       case 'lock':
@@ -185,6 +252,7 @@ function handleEvents() {
         break;
       case 'lineClear': {
         sound.lineClear(event.count);
+        vibrate(event.count >= 4 ? [40, 50, 60] : [30, 30, 30]);
         effects.burstRows(event.rows, BOARD_COLS, event.boardBeforeClear);
         effects.shake(event.count >= 4 ? 8 : 3 + event.count, 240);
 
@@ -205,6 +273,7 @@ function handleEvents() {
         break;
       case 'gameOver':
         sound.gameOver();
+        vibrate([80, 60, 120]);
         effects.shake(9, 400);
         break;
       default:
@@ -446,5 +515,6 @@ bindKeyboard();
 bindAudioUnlock();
 bindMobileGuards();
 registerServiceWorker();
+loadWatermarkFont();
 resizeBoard();
 restartDropLoop();
