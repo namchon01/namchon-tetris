@@ -2,8 +2,21 @@
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#0f0f1a" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Tetris" />
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="description" content="아이폰에서 홈 화면에 추가해 실행하는 테트리스 웹앱" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
     <title>Namchon Tetris</title>
     <link rel="stylesheet" href="css/style.css" />
   </head>
@@ -40,16 +53,16 @@
           </div>
 
           <div class="controls">
-            <button class="control-btn" data-action="left" aria-label="왼쪽">◀</button>
-            <button class="control-btn" data-action="right" aria-label="오른쪽">▶</button>
-            <button class="control-btn" data-action="rotate" aria-label="회전">↻</button>
-            <button class="control-btn" data-action="down" aria-label="아래">↓</button>
-            <button class="control-btn wide" data-action="drop" aria-label="하드 드롭">DROP</button>
+            <button type="button" class="control-btn" data-action="left" aria-label="왼쪽">◀</button>
+            <button type="button" class="control-btn" data-action="right" aria-label="오른쪽">▶</button>
+            <button type="button" class="control-btn" data-action="rotate" aria-label="회전">↻</button>
+            <button type="button" class="control-btn" data-action="down" aria-label="아래">↓</button>
+            <button type="button" class="control-btn wide" data-action="drop" aria-label="하드 드롭">DROP</button>
           </div>
 
           <div class="actions">
-            <button id="pause-btn" class="action-btn">PAUSE</button>
-            <button id="restart-btn" class="action-btn">RESTART</button>
+            <button type="button" id="pause-btn" class="action-btn">PAUSE</button>
+            <button type="button" id="restart-btn" class="action-btn">RESTART</button>
           </div>
         </section>
       </main>
@@ -62,7 +75,7 @@
         <div class="modal">
           <h2>GAME OVER</h2>
           <p>Score: <span id="final-score">0</span></p>
-          <button id="play-again-btn" class="action-btn primary">PLAY AGAIN</button>
+          <button type="button" id="play-again-btn" class="action-btn primary">PLAY AGAIN</button>
         </div>
       </div>
     </div>

@@ -19,6 +19,10 @@ const playAgainBtn = document.getElementById('play-again-btn');
 const engine = new GameEngine();
 let dropTimer = null;
 
+const REPEATABLE = new Set(['left', 'right', 'down']);
+const HOLD_DELAY_MS = 220;
+const HOLD_INTERVAL_MS = 70;
+
 function scheduleDrop() {
   if (dropTimer) clearTimeout(dropTimer);
   if (engine.phase !== 'playing') return;
@@ -36,9 +40,9 @@ function restartDropLoop() {
 
 function resizeBoard() {
   const rect = boardCanvas.getBoundingClientRect();
-  const dpr = window.devicePixelRatio || 1;
-  boardCanvas.width = rect.width * dpr;
-  boardCanvas.height = rect.height * dpr;
+  const dpr = Math.min(window.devicePixelRatio || 1, 3);
+  boardCanvas.width = Math.max(1, Math.floor(rect.width * dpr));
+  boardCanvas.height = Math.max(1, Math.floor(rect.height * dpr));
   boardCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
   render();
 }
@@ -141,13 +145,9 @@ function afterAction() {
   restartDropLoop();
 }
 
-function restartGame() {
-  engine.reset();
-  render();
-  restartDropLoop();
-}
+function runAction(action) {
+  if (engine.phase !== 'playing') return false;
 
-function bindControlButtons() {
   const actions = {
     left: () => engine.moveLeft(),
     right: () => engine.moveRight(),
@@ -156,12 +156,76 @@ function bindControlButtons() {
     drop: () => engine.hardDrop(),
   };
 
+  if (!actions[action]) return false;
+  actions[action]();
+  afterAction();
+  return true;
+}
+
+function restartGame() {
+  engine.reset();
+  render();
+  restartDropLoop();
+}
+
+function bindPointerControl(button, onPress) {
+  let holdTimeout = null;
+  let holdInterval = null;
+  let pressed = false;
+  let pointerId = null;
+
+  const clearHold = () => {
+    if (holdTimeout) clearTimeout(holdTimeout);
+    if (holdInterval) clearInterval(holdInterval);
+    holdTimeout = null;
+    holdInterval = null;
+  };
+
+  const endPress = () => {
+    if (!pressed) return;
+    pressed = false;
+    pointerId = null;
+    button.classList.remove('is-pressed');
+    clearHold();
+  };
+
+  button.addEventListener('pointerdown', (event) => {
+    if (event.button !== undefined && event.button !== 0) return;
+    event.preventDefault();
+    if (pressed) return;
+
+    pressed = true;
+    pointerId = event.pointerId;
+    button.classList.add('is-pressed');
+    button.setPointerCapture?.(event.pointerId);
+    onPress(true);
+
+    if (REPEATABLE.has(button.dataset.action)) {
+      holdTimeout = setTimeout(() => {
+        holdInterval = setInterval(() => onPress(false), HOLD_INTERVAL_MS);
+      }, HOLD_DELAY_MS);
+    }
+  });
+
+  const stop = (event) => {
+    if (pointerId !== null && event.pointerId !== pointerId) return;
+    endPress();
+  };
+
+  button.addEventListener('pointerup', stop);
+  button.addEventListener('pointercancel', stop);
+  button.addEventListener('pointerleave', (event) => {
+    if (pointerId !== null && event.pointerId === pointerId) endPress();
+  });
+
+  // Prevent iOS long-press callout / context menu on controls
+  button.addEventListener('contextmenu', (event) => event.preventDefault());
+}
+
+function bindControlButtons() {
   document.querySelectorAll('[data-action]').forEach((button) => {
-    button.addEventListener('click', () => {
-      if (engine.phase !== 'playing') return;
-      const action = button.dataset.action;
-      actions[action]?.();
-      afterAction();
+    bindPointerControl(button, () => {
+      runAction(button.dataset.action);
     });
   });
 }
@@ -196,15 +260,36 @@ function bindKeyboard() {
     if (!action) return;
 
     event.preventDefault();
-    const actions = {
-      left: () => engine.moveLeft(),
-      right: () => engine.moveRight(),
-      rotate: () => engine.rotate(),
-      down: () => engine.moveDown(),
-      drop: () => engine.hardDrop(),
-    };
-    actions[action]?.();
-    afterAction();
+    runAction(action);
+  });
+}
+
+function bindMobileGuards() {
+  // Stop Safari rubber-band scroll while playing
+  document.addEventListener(
+    'touchmove',
+    (event) => {
+      if (event.target.closest('button, a, input, textarea')) return;
+      event.preventDefault();
+    },
+    { passive: false },
+  );
+
+  document.addEventListener('gesturestart', (event) => event.preventDefault());
+
+  // Keep layout correct when iOS Safari chrome shows/hides
+  window.visualViewport?.addEventListener('resize', resizeBoard);
+  window.addEventListener('orientationchange', () => {
+    setTimeout(resizeBoard, 250);
+  });
+}
+
+function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(() => {
+      // Offline install is best-effort; game still works without it.
+    });
   });
 }
 
@@ -223,5 +308,7 @@ window.addEventListener('resize', resizeBoard);
 
 bindControlButtons();
 bindKeyboard();
+bindMobileGuards();
+registerServiceWorker();
 resizeBoard();
 restartDropLoop();
