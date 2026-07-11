@@ -1,5 +1,7 @@
 import { GameEngine } from './gameEngine.js';
 import { BOARD_ROWS, BOARD_COLS, BASE_OFFSETS, TETROMINO_COLORS } from './tetromino.js';
+import { sound } from './audio.js';
+import { EffectsManager } from './effects.js';
 
 const boardCanvas = document.getElementById('board');
 const nextCanvas = document.getElementById('next-piece');
@@ -11,17 +13,22 @@ const levelEl = document.getElementById('level');
 const linesEl = document.getElementById('lines');
 const pauseBtn = document.getElementById('pause-btn');
 const restartBtn = document.getElementById('restart-btn');
+const soundBtn = document.getElementById('sound-btn');
 const pauseOverlay = document.getElementById('pause-overlay');
 const gameOverOverlay = document.getElementById('game-over-overlay');
 const finalScoreEl = document.getElementById('final-score');
 const playAgainBtn = document.getElementById('play-again-btn');
 
 const engine = new GameEngine();
+const effects = new EffectsManager();
 let dropTimer = null;
+let animationFrame = null;
 
 const REPEATABLE = new Set(['left', 'right', 'down']);
 const HOLD_DELAY_MS = 220;
 const HOLD_INTERVAL_MS = 70;
+
+const CLEAR_LABELS = { 1: 'SINGLE', 2: 'DOUBLE!', 3: 'TRIPLE!', 4: 'TETRIS!!' };
 
 function scheduleDrop() {
   if (dropTimer) clearTimeout(dropTimer);
@@ -56,11 +63,34 @@ function drawBlock(ctx, x, y, size, color, highlighted = false) {
   ctx.roundRect(x + padding, y + padding, size - padding * 2, size - padding * 2, radius);
   ctx.fill();
 
+  // Subtle top-light for a 3D feel
+  const gloss = ctx.createLinearGradient(x, y, x, y + size);
+  gloss.addColorStop(0, 'rgba(255, 255, 255, 0.28)');
+  gloss.addColorStop(0.45, 'rgba(255, 255, 255, 0)');
+  gloss.addColorStop(1, 'rgba(0, 0, 0, 0.22)');
+  ctx.fillStyle = gloss;
+  ctx.beginPath();
+  ctx.roundRect(x + padding, y + padding, size - padding * 2, size - padding * 2, radius);
+  ctx.fill();
+
   if (highlighted) {
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
     ctx.lineWidth = 1;
     ctx.stroke();
   }
+}
+
+function drawGhostBlock(ctx, x, y, size, color) {
+  const padding = 1.5;
+  const radius = Math.max(2, size * 0.12);
+
+  ctx.strokeStyle = color;
+  ctx.globalAlpha = 0.35;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.roundRect(x + padding, y + padding, size - padding * 2, size - padding * 2, radius);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
 }
 
 function renderBoard() {
@@ -72,6 +102,10 @@ function renderBoard() {
 
   boardCtx.clearRect(0, 0, width, height);
 
+  const shake = effects.shakeOffset();
+  boardCtx.save();
+  boardCtx.translate(shake.x, shake.y);
+
   for (let row = 0; row < BOARD_ROWS; row += 1) {
     for (let col = 0; col < BOARD_COLS; col += 1) {
       const x = col * cellWidth;
@@ -81,13 +115,29 @@ function renderBoard() {
       boardCtx.beginPath();
       boardCtx.roundRect(x + 1, y + 1, cellWidth - 2, cellHeight - 2, 2);
       boardCtx.fill();
+    }
+  }
 
-      const color = cells[row][col];
-      if (color) {
-        drawBlock(boardCtx, x, y, cellWidth, color);
+  if (engine.activePiece) {
+    const ghostColor = TETROMINO_COLORS[engine.activePiece.type];
+    for (const [row, col] of engine.getGhostPositions()) {
+      if (row >= 0 && row < BOARD_ROWS && col >= 0 && col < BOARD_COLS) {
+        drawGhostBlock(boardCtx, col * cellWidth, row * cellHeight, cellWidth, ghostColor);
       }
     }
   }
+
+  for (let row = 0; row < BOARD_ROWS; row += 1) {
+    for (let col = 0; col < BOARD_COLS; col += 1) {
+      const color = cells[row][col];
+      if (color) {
+        drawBlock(boardCtx, col * cellWidth, row * cellHeight, cellWidth, color);
+      }
+    }
+  }
+
+  effects.draw(boardCtx, cellWidth, cellHeight, width, height);
+  boardCtx.restore();
 }
 
 function renderNextPiece() {
@@ -125,6 +175,7 @@ function updateUI() {
   levelEl.textContent = engine.scoreState.level;
   linesEl.textContent = engine.scoreState.linesCleared;
   pauseBtn.textContent = engine.phase === 'paused' ? 'RESUME' : 'PAUSE';
+  soundBtn.textContent = sound.muted ? '🔇' : '🔊';
   pauseOverlay.classList.toggle('hidden', engine.phase !== 'paused');
   gameOverOverlay.classList.toggle('hidden', engine.phase !== 'gameOver');
 
@@ -135,9 +186,74 @@ function updateUI() {
   renderNextPiece();
 }
 
+function handleEvents() {
+  for (const event of engine.consumeEvents()) {
+    switch (event.type) {
+      case 'move':
+        sound.move();
+        break;
+      case 'rotate':
+        sound.rotate();
+        break;
+      case 'softDrop':
+        sound.softDrop();
+        break;
+      case 'hardDrop':
+        sound.hardDrop();
+        if (event.rows >= 4) effects.shake(4, 180);
+        break;
+      case 'lock':
+        sound.lock();
+        break;
+      case 'lineClear': {
+        sound.lineClear(event.count);
+        effects.burstRows(event.rows, BOARD_COLS, event.boardBeforeClear);
+        effects.shake(event.count >= 4 ? 8 : 3 + event.count, 240);
+
+        const label = CLEAR_LABELS[event.count] ?? `${event.count} LINES`;
+        const midRow = event.rows.reduce((sum, r) => sum + r, 0) / event.rows.length;
+        effects.scorePopup(`${label} +${event.points}`, midRow, BOARD_COLS / 2);
+        document.body.classList.remove('flash');
+        if (event.count >= 2) {
+          void document.body.offsetWidth;
+          document.body.classList.add('flash');
+        }
+        break;
+      }
+      case 'levelUp':
+        sound.levelUp();
+        effects.levelFlash();
+        effects.scorePopup(`LEVEL ${event.level}!`, BOARD_ROWS / 3, BOARD_COLS / 2);
+        break;
+      case 'gameOver':
+        sound.gameOver();
+        effects.shake(9, 400);
+        break;
+      default:
+        break;
+    }
+  }
+}
+
+function animationLoop() {
+  animationFrame = null;
+  renderBoard();
+  if (effects.active) {
+    animationFrame = requestAnimationFrame(animationLoop);
+  }
+}
+
+function kickAnimation() {
+  if (!animationFrame && effects.active) {
+    animationFrame = requestAnimationFrame(animationLoop);
+  }
+}
+
 function render() {
+  handleEvents();
   renderBoard();
   updateUI();
+  kickAnimation();
 }
 
 function afterAction() {
@@ -152,7 +268,7 @@ function runAction(action) {
     left: () => engine.moveLeft(),
     right: () => engine.moveRight(),
     rotate: () => engine.rotate(),
-    down: () => engine.moveDown(),
+    down: () => engine.moveDown({ soft: true }),
     drop: () => engine.hardDrop(),
   };
 
@@ -164,6 +280,7 @@ function runAction(action) {
 
 function restartGame() {
   engine.reset();
+  effects.reset();
   render();
   restartDropLoop();
 }
@@ -198,6 +315,7 @@ function bindPointerControl(button, onPress) {
     pointerId = event.pointerId;
     button.classList.add('is-pressed');
     button.setPointerCapture?.(event.pointerId);
+    sound.unlock();
     onPress(true);
 
     if (REPEATABLE.has(button.dataset.action)) {
@@ -244,13 +362,11 @@ function bindKeyboard() {
   };
 
   window.addEventListener('keydown', (event) => {
+    sound.unlock();
     if (engine.phase === 'gameOver') return;
 
     if (event.code === 'KeyP') {
-      engine.togglePause();
-      if (engine.phase === 'playing') restartDropLoop();
-      else if (dropTimer) clearTimeout(dropTimer);
-      render();
+      togglePause();
       return;
     }
 
@@ -293,16 +409,35 @@ function registerServiceWorker() {
   });
 }
 
-pauseBtn.addEventListener('click', () => {
+function togglePause() {
   if (engine.phase === 'gameOver') return;
   engine.togglePause();
+  sound.pause();
   if (engine.phase === 'playing') restartDropLoop();
   else if (dropTimer) clearTimeout(dropTimer);
   render();
+}
+
+pauseBtn.addEventListener('click', () => {
+  sound.unlock();
+  togglePause();
 });
 
-restartBtn.addEventListener('click', restartGame);
-playAgainBtn.addEventListener('click', restartGame);
+restartBtn.addEventListener('click', () => {
+  sound.unlock();
+  restartGame();
+});
+
+playAgainBtn.addEventListener('click', () => {
+  sound.unlock();
+  restartGame();
+});
+
+soundBtn.addEventListener('click', () => {
+  sound.unlock();
+  const muted = sound.toggleMute();
+  soundBtn.textContent = muted ? '🔇' : '🔊';
+});
 
 window.addEventListener('resize', resizeBoard);
 
