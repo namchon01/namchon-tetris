@@ -1,6 +1,7 @@
 import { GameEngine } from './gameEngine.js';
 import { BOARD_ROWS, BOARD_COLS, BASE_OFFSETS, TETROMINO_COLORS } from './tetromino.js';
 import { sound } from './audio.js';
+import { music } from './music.js';
 import { EffectsManager } from './effects.js';
 
 // roundRect is missing on older Android WebView/Chrome (<99); without this
@@ -29,6 +30,7 @@ const linesEl = document.getElementById('lines');
 const pauseBtn = document.getElementById('pause-btn');
 const restartBtn = document.getElementById('restart-btn');
 const soundBtn = document.getElementById('sound-btn');
+const musicBtn = document.getElementById('music-btn');
 const pauseOverlay = document.getElementById('pause-overlay');
 const gameOverOverlay = document.getElementById('game-over-overlay');
 const finalScoreEl = document.getElementById('final-score');
@@ -36,6 +38,7 @@ const playAgainBtn = document.getElementById('play-again-btn');
 
 const engine = new GameEngine();
 const effects = new EffectsManager();
+music.getLevel = () => engine.scoreState.level;
 let dropTimer = null;
 let animationFrame = null;
 
@@ -216,6 +219,8 @@ function updateUI() {
   linesEl.textContent = engine.scoreState.linesCleared;
   pauseBtn.textContent = engine.phase === 'paused' ? 'RESUME' : 'PAUSE';
   soundBtn.textContent = sound.muted ? '🔇' : '🔊';
+  musicBtn.textContent = '🎵';
+  musicBtn.classList.toggle('off', !music.enabled);
   pauseOverlay.classList.toggle('hidden', engine.phase !== 'paused');
   gameOverOverlay.classList.toggle('hidden', engine.phase !== 'gameOver');
 
@@ -277,6 +282,7 @@ function handleEvents() {
         effects.scorePopup(`LEVEL ${event.level}!`, BOARD_ROWS / 3, BOARD_COLS / 2);
         break;
       case 'gameOver':
+        music.stop();
         sound.gameOver();
         vibrate([80, 60, 120]);
         effects.shake(9, 400);
@@ -335,6 +341,8 @@ function restartGame() {
   effects.reset();
   render();
   restartDropLoop();
+  music.stop();
+  music.start();
 }
 
 function bindPointerControl(button, onPress) {
@@ -440,6 +448,7 @@ function bindAudioUnlock() {
     if (sound.unlocked) {
       document.removeEventListener('touchend', tryUnlock);
       document.removeEventListener('pointerup', tryUnlock);
+      if (engine.phase === 'playing') music.start();
     }
   };
 
@@ -487,8 +496,13 @@ function togglePause() {
   if (engine.phase === 'gameOver') return;
   engine.togglePause();
   sound.pause();
-  if (engine.phase === 'playing') restartDropLoop();
-  else if (dropTimer) clearTimeout(dropTimer);
+  if (engine.phase === 'playing') {
+    restartDropLoop();
+    music.start();
+  } else {
+    if (dropTimer) clearTimeout(dropTimer);
+    music.stop();
+  }
   render();
 }
 
@@ -511,6 +525,15 @@ soundBtn.addEventListener('click', () => {
   sound.unlock();
   const muted = sound.toggleMute();
   soundBtn.textContent = muted ? '🔇' : '🔊';
+  if (muted) music.stop();
+  else if (music.enabled && engine.phase === 'playing') music.start();
+});
+
+musicBtn.addEventListener('click', () => {
+  sound.unlock();
+  const enabled = music.toggle();
+  if (enabled && engine.phase === 'playing') music.start();
+  musicBtn.classList.toggle('off', !enabled);
 });
 
 window.addEventListener('resize', resizeBoard);
