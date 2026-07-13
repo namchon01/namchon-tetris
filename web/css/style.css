@@ -184,13 +184,17 @@ body {
 
 .actions {
   display: grid;
-  grid-template-columns: 1fr 1fr auto;
+  grid-template-columns: 1fr 1fr auto auto;
   gap: 8px;
 }
 
 .action-btn.sound {
   min-width: 48px;
   font-size: 1rem;
+}
+
+.action-btn.off {
+  opacity: 0.35;
 }
 
 .action-btn {
