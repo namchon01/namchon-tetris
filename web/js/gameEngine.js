@@ -8,43 +8,94 @@ import {
   TETROMINO_COLORS,
 } from './tetromino.js';
 
+export const MAX_LEVEL = 5;
+export const LEVEL_CLEAR_SCORE = 2000;
+export const BASE_DROP_INTERVAL = 1000;
+/** Each level is 10% faster than the previous (interval × 0.9). */
+export const LEVEL_SPEED_FACTOR = 0.9;
+
 const WALL_KICK_OFFSETS = [
   [0, 0], [0, -1], [0, 1], [-1, 0], [1, 0], [0, -2], [0, 2],
 ];
 
-function createScoreState() {
-  return { score: 0, level: 1, linesCleared: 0 };
+function createScoreState(level = 1) {
+  return {
+    score: 0,
+    levelScore: 0,
+    level,
+    linesCleared: 0,
+  };
 }
 
-function addLines(scoreState, count) {
-  if (count <= 0) return;
+function addScore(scoreState, points) {
+  if (points <= 0) return false;
 
-  const pointsByCount = { 1: 100, 2: 300, 3: 500, 4: 800 };
-  const points = pointsByCount[count] ?? 100 * count;
+  scoreState.score += points;
+  scoreState.levelScore += points;
+  return tryAdvanceLevel(scoreState);
+}
 
-  scoreState.score += points * scoreState.level;
-  scoreState.linesCleared += count;
-  scoreState.level = 1 + Math.floor(scoreState.linesCleared / 10);
+function tryAdvanceLevel(scoreState) {
+  let advanced = false;
+
+  while (
+    scoreState.levelScore >= LEVEL_CLEAR_SCORE
+    && scoreState.level < MAX_LEVEL
+  ) {
+    scoreState.levelScore -= LEVEL_CLEAR_SCORE;
+    scoreState.level += 1;
+    advanced = true;
+  }
+
+  return advanced;
 }
 
 export class GameEngine {
   constructor() {
-    this.reset();
+    this.reset(1);
   }
 
-  reset() {
+  /**
+   * @param {number} startLevel Level to begin from (1–5)
+   * @param {'fresh'|'continue'} mode fresh = full reset; continue = keep total score history cleared for stage
+   */
+  reset(startLevel = 1) {
+    const level = Math.min(MAX_LEVEL, Math.max(1, startLevel));
     this.board = createBoard();
     this.activePiece = null;
     this.nextPieceType = randomType();
     this.phase = 'playing';
-    this.scoreState = createScoreState();
+    this.scoreState = createScoreState(level);
+    this.failedLevel = null;
+    this.justLeveledUp = false;
+    this.justClearedGame = false;
     this.spawnNextPiece();
   }
 
+  /** Restart after game over: previous stage (or stay on 1). */
+  restartAfterFailure() {
+    const failed = this.failedLevel ?? this.scoreState.level;
+    const previous = Math.max(1, failed - 1);
+    this.reset(previous);
+  }
+
   get dropInterval() {
-    const base = 1000;
-    const reduction = (this.scoreState.level - 1) * 80;
-    return Math.max(80, base - reduction);
+    const level = this.scoreState.level;
+    return Math.max(
+      80,
+      Math.round(BASE_DROP_INTERVAL * LEVEL_SPEED_FACTOR ** (level - 1)),
+    );
+  }
+
+  get levelProgress() {
+    return Math.min(LEVEL_CLEAR_SCORE, this.scoreState.levelScore);
+  }
+
+  get isMaxLevelCleared() {
+    return (
+      this.scoreState.level === MAX_LEVEL
+      && this.scoreState.levelScore >= LEVEL_CLEAR_SCORE
+    );
   }
 
   togglePause() {
@@ -74,7 +125,7 @@ export class GameEngine {
     const moved = movePiece(this.activePiece, 1, 0);
     if (isValid(moved, this.board)) {
       this.activePiece = moved;
-      this.scoreState.score += 1;
+      this.applyScore(1);
       return true;
     }
 
@@ -114,8 +165,7 @@ export class GameEngine {
     }
 
     this.activePiece = piece;
-    this.scoreState.score += droppedRows * 2;
-    this.lockPiece();
+    this.lockPiece(droppedRows * 2);
   }
 
   tick() {
@@ -123,7 +173,27 @@ export class GameEngine {
     this.moveDown();
   }
 
+  applyScore(points) {
+    this.justLeveledUp = false;
+    this.justClearedGame = false;
+
+    const advanced = addScore(this.scoreState, points);
+
+    if (this.isMaxLevelCleared) {
+      this.phase = 'cleared';
+      this.activePiece = null;
+      this.justClearedGame = true;
+      return;
+    }
+
+    if (advanced) {
+      this.justLeveledUp = true;
+    }
+  }
+
   spawnNextPiece() {
+    if (this.phase === 'cleared' || this.phase === 'gameOver') return;
+
     const type = this.nextPieceType;
     this.nextPieceType = randomType();
 
@@ -132,17 +202,40 @@ export class GameEngine {
       this.activePiece = piece;
     } else {
       this.activePiece = null;
+      this.failedLevel = this.scoreState.level;
       this.phase = 'gameOver';
     }
   }
 
-  lockPiece() {
+  lockPiece(bonusPoints = 0) {
     if (!this.activePiece) return;
+    if (this.phase === 'cleared' || this.phase === 'gameOver') return;
 
     this.board = placePiece(this.board, this.activePiece);
+    this.activePiece = null;
+
     const result = clearLines(this.board);
     this.board = result.board;
-    addLines(this.scoreState, result.cleared);
+
+    this.justLeveledUp = false;
+    this.justClearedGame = false;
+
+    const pointsByCount = { 1: 100, 2: 300, 3: 500, 4: 800 };
+    let totalPoints = bonusPoints;
+
+    if (result.cleared > 0) {
+      const linePoints = (pointsByCount[result.cleared] ?? 100 * result.cleared)
+        * this.scoreState.level;
+      this.scoreState.linesCleared += result.cleared;
+      totalPoints += linePoints;
+    }
+
+    if (totalPoints > 0) {
+      this.applyScore(totalPoints);
+    }
+
+    if (this.phase === 'cleared' || this.phase === 'gameOver') return;
+
     this.spawnNextPiece();
   }
 

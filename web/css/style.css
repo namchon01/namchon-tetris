@@ -97,6 +97,38 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+.level-progress {
+  margin-top: 10px;
+  max-width: 220px;
+}
+
+.level-progress-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.level-progress-meta .value {
+  font-size: 0.75rem;
+}
+
+.level-progress-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.level-progress-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: #4fd1c5;
+  transition: width 0.2s ease;
+}
+
 #next-piece {
   margin-top: 4px;
   border-radius: 6px;
@@ -183,8 +215,27 @@ body {
 }
 
 .modal p {
-  margin: 0 0 20px;
+  margin: 0 0 12px;
   font-size: 1.1rem;
+}
+
+.modal .hint {
+  margin-bottom: 20px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.overlay.toast {
+  background: rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
+.overlay.toast > p {
+  font-size: 1.6rem;
+  padding: 16px 28px;
+  border-radius: 12px;
+  background: rgba(20, 20, 32, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
 @media (min-width: 768px) {

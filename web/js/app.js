@@ -1,4 +1,4 @@
-import { GameEngine } from './gameEngine.js';
+import { GameEngine, MAX_LEVEL, LEVEL_CLEAR_SCORE } from './gameEngine.js';
 import { BOARD_ROWS, BOARD_COLS, BASE_OFFSETS, TETROMINO_COLORS } from './tetromino.js';
 
 const boardCanvas = document.getElementById('board');
@@ -9,15 +9,27 @@ const nextCtx = nextCanvas.getContext('2d');
 const scoreEl = document.getElementById('score');
 const levelEl = document.getElementById('level');
 const linesEl = document.getElementById('lines');
+const levelScoreEl = document.getElementById('level-score');
+const levelProgressFill = document.getElementById('level-progress-fill');
 const pauseBtn = document.getElementById('pause-btn');
 const restartBtn = document.getElementById('restart-btn');
 const pauseOverlay = document.getElementById('pause-overlay');
+const levelUpOverlay = document.getElementById('level-up-overlay');
+const levelUpText = document.getElementById('level-up-text');
 const gameOverOverlay = document.getElementById('game-over-overlay');
+const clearedOverlay = document.getElementById('cleared-overlay');
 const finalScoreEl = document.getElementById('final-score');
+const clearedScoreEl = document.getElementById('cleared-score');
+const retryHintEl = document.getElementById('retry-hint');
 const playAgainBtn = document.getElementById('play-again-btn');
+const clearedRestartBtn = document.getElementById('cleared-restart-btn');
 
 const engine = new GameEngine();
 let dropTimer = null;
+let levelUpHideTimer = null;
+
+/** Actions that must not reset the gravity timer (keep falling while rotating/moving). */
+const NON_RESET_ACTIONS = new Set(['left', 'right', 'rotate']);
 
 function scheduleDrop() {
   if (dropTimer) clearTimeout(dropTimer);
@@ -26,12 +38,18 @@ function scheduleDrop() {
   dropTimer = setTimeout(() => {
     engine.tick();
     render();
+    handleEngineEvents();
     scheduleDrop();
   }, engine.dropInterval);
 }
 
 function restartDropLoop() {
   scheduleDrop();
+}
+
+function stopDropLoop() {
+  if (dropTimer) clearTimeout(dropTimer);
+  dropTimer = null;
 }
 
 function resizeBoard() {
@@ -116,16 +134,55 @@ function renderNextPiece() {
   }
 }
 
+function showLevelUpToast() {
+  levelUpText.textContent = `LEVEL ${engine.scoreState.level}!`;
+  levelUpOverlay.classList.remove('hidden');
+
+  if (levelUpHideTimer) clearTimeout(levelUpHideTimer);
+  levelUpHideTimer = setTimeout(() => {
+    levelUpOverlay.classList.add('hidden');
+  }, 900);
+}
+
+function handleEngineEvents() {
+  if (engine.justLeveledUp) {
+    showLevelUpToast();
+    engine.justLeveledUp = false;
+    // Level speed changed — reschedule gravity with new interval.
+    restartDropLoop();
+  }
+
+  if (engine.phase === 'cleared' || engine.phase === 'gameOver') {
+    stopDropLoop();
+  }
+}
+
 function updateUI() {
-  scoreEl.textContent = engine.scoreState.score;
-  levelEl.textContent = engine.scoreState.level;
-  linesEl.textContent = engine.scoreState.linesCleared;
+  const { score, level, linesCleared, levelScore } = engine.scoreState;
+  const progress = Math.min(LEVEL_CLEAR_SCORE, levelScore);
+
+  scoreEl.textContent = score;
+  levelEl.textContent = `${level} / ${MAX_LEVEL}`;
+  linesEl.textContent = linesCleared;
+  levelScoreEl.textContent = `${progress} / ${LEVEL_CLEAR_SCORE}`;
+  levelProgressFill.style.width = `${(progress / LEVEL_CLEAR_SCORE) * 100}%`;
+
   pauseBtn.textContent = engine.phase === 'paused' ? 'RESUME' : 'PAUSE';
   pauseOverlay.classList.toggle('hidden', engine.phase !== 'paused');
   gameOverOverlay.classList.toggle('hidden', engine.phase !== 'gameOver');
+  clearedOverlay.classList.toggle('hidden', engine.phase !== 'cleared');
 
   if (engine.phase === 'gameOver') {
-    finalScoreEl.textContent = engine.scoreState.score;
+    finalScoreEl.textContent = score;
+    const failed = engine.failedLevel ?? level;
+    const retryLevel = Math.max(1, failed - 1);
+    retryHintEl.textContent = failed === 1
+      ? '레벨 1부터 다시 시작합니다'
+      : `레벨 ${retryLevel}부터 다시 시작합니다`;
+  }
+
+  if (engine.phase === 'cleared') {
+    clearedScoreEl.textContent = score;
   }
 
   renderNextPiece();
@@ -136,13 +193,29 @@ function render() {
   updateUI();
 }
 
-function afterAction() {
+/**
+ * @param {string} action
+ */
+function afterAction(action) {
+  render();
+  handleEngineEvents();
+
+  // Keep gravity running during rotate / left / right — do not reset the fall timer.
+  if (!NON_RESET_ACTIONS.has(action)) {
+    restartDropLoop();
+  }
+}
+
+function restartFromLevelOne() {
+  stopDropLoop();
+  engine.reset(1);
   render();
   restartDropLoop();
 }
 
-function restartGame() {
-  engine.reset();
+function restartAfterFailure() {
+  stopDropLoop();
+  engine.restartAfterFailure();
   render();
   restartDropLoop();
 }
@@ -161,7 +234,7 @@ function bindControlButtons() {
       if (engine.phase !== 'playing') return;
       const action = button.dataset.action;
       actions[action]?.();
-      afterAction();
+      afterAction(action);
     });
   });
 }
@@ -180,12 +253,12 @@ function bindKeyboard() {
   };
 
   window.addEventListener('keydown', (event) => {
-    if (engine.phase === 'gameOver') return;
+    if (engine.phase === 'gameOver' || engine.phase === 'cleared') return;
 
     if (event.code === 'KeyP') {
       engine.togglePause();
       if (engine.phase === 'playing') restartDropLoop();
-      else if (dropTimer) clearTimeout(dropTimer);
+      else stopDropLoop();
       render();
       return;
     }
@@ -204,20 +277,21 @@ function bindKeyboard() {
       drop: () => engine.hardDrop(),
     };
     actions[action]?.();
-    afterAction();
+    afterAction(action);
   });
 }
 
 pauseBtn.addEventListener('click', () => {
-  if (engine.phase === 'gameOver') return;
+  if (engine.phase === 'gameOver' || engine.phase === 'cleared') return;
   engine.togglePause();
   if (engine.phase === 'playing') restartDropLoop();
-  else if (dropTimer) clearTimeout(dropTimer);
+  else stopDropLoop();
   render();
 });
 
-restartBtn.addEventListener('click', restartGame);
-playAgainBtn.addEventListener('click', restartGame);
+restartBtn.addEventListener('click', restartFromLevelOne);
+playAgainBtn.addEventListener('click', restartAfterFailure);
+clearedRestartBtn.addEventListener('click', restartFromLevelOne);
 
 window.addEventListener('resize', resizeBoard);
 
