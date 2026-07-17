@@ -55,10 +55,6 @@ export class GameEngine {
     this.reset(1);
   }
 
-  /**
-   * @param {number} startLevel Level to begin from (1–5)
-   * @param {'fresh'|'continue'} mode fresh = full reset; continue = keep total score history cleared for stage
-   */
   reset(startLevel = 1) {
     const level = Math.min(MAX_LEVEL, Math.max(1, startLevel));
     this.board = createBoard();
@@ -66,6 +62,7 @@ export class GameEngine {
     this.nextPieceType = randomType();
     this.phase = 'playing';
     this.scoreState = createScoreState(level);
+    this.events = [];
     this.failedLevel = null;
     this.justLeveledUp = false;
     this.justClearedGame = false;
@@ -98,6 +95,16 @@ export class GameEngine {
     );
   }
 
+  emit(event) {
+    this.events.push(event);
+  }
+
+  consumeEvents() {
+    const events = this.events;
+    this.events = [];
+    return events;
+  }
+
   togglePause() {
     if (this.phase === 'playing') this.phase = 'paused';
     else if (this.phase === 'paused') this.phase = 'playing';
@@ -112,20 +119,27 @@ export class GameEngine {
   }
 
   moveLeft() {
-    return this.performMove((piece) => movePiece(piece, 0, -1));
+    const moved = this.performMove((piece) => movePiece(piece, 0, -1));
+    if (moved) this.emit({ type: 'move' });
+    return moved;
   }
 
   moveRight() {
-    return this.performMove((piece) => movePiece(piece, 0, 1));
+    const moved = this.performMove((piece) => movePiece(piece, 0, 1));
+    if (moved) this.emit({ type: 'move' });
+    return moved;
   }
 
-  moveDown() {
+  moveDown({ soft = false } = {}) {
     if (!this.activePiece) return false;
 
     const moved = movePiece(this.activePiece, 1, 0);
     if (isValid(moved, this.board)) {
       this.activePiece = moved;
-      this.applyScore(1);
+      if (soft) {
+        this.applyScore(1);
+        this.emit({ type: 'softDrop' });
+      }
       return true;
     }
 
@@ -141,6 +155,7 @@ export class GameEngine {
       const candidate = movePiece(rotated, dRow, dCol);
       if (isValid(candidate, this.board)) {
         this.activePiece = candidate;
+        this.emit({ type: 'rotate' });
         return true;
       }
     }
@@ -165,6 +180,7 @@ export class GameEngine {
     }
 
     this.activePiece = piece;
+    this.emit({ type: 'hardDrop', rows: droppedRows });
     this.lockPiece(droppedRows * 2);
   }
 
@@ -177,18 +193,23 @@ export class GameEngine {
     this.justLeveledUp = false;
     this.justClearedGame = false;
 
+    const levelBefore = this.scoreState.level;
     const advanced = addScore(this.scoreState, points);
 
     if (this.isMaxLevelCleared) {
       this.phase = 'cleared';
       this.activePiece = null;
       this.justClearedGame = true;
-      return;
+      this.emit({ type: 'levelUp', level: this.scoreState.level });
+      return true;
     }
 
     if (advanced) {
       this.justLeveledUp = true;
+      this.emit({ type: 'levelUp', level: this.scoreState.level });
     }
+
+    return this.scoreState.level > levelBefore;
   }
 
   spawnNextPiece() {
@@ -204,6 +225,7 @@ export class GameEngine {
       this.activePiece = null;
       this.failedLevel = this.scoreState.level;
       this.phase = 'gameOver';
+      this.emit({ type: 'gameOver' });
     }
   }
 
@@ -211,8 +233,15 @@ export class GameEngine {
     if (!this.activePiece) return;
     if (this.phase === 'cleared' || this.phase === 'gameOver') return;
 
+    const lockedPositions = absolutePositions(this.activePiece);
     this.board = placePiece(this.board, this.activePiece);
     this.activePiece = null;
+
+    const fullRows = [];
+    this.board.forEach((row, index) => {
+      if (row.every((cell) => cell !== null)) fullRows.push(index);
+    });
+    const boardBeforeClear = this.board.map((row) => [...row]);
 
     const result = clearLines(this.board);
     this.board = result.board;
@@ -221,13 +250,26 @@ export class GameEngine {
     this.justClearedGame = false;
 
     const pointsByCount = { 1: 100, 2: 300, 3: 500, 4: 800 };
-    let totalPoints = bonusPoints;
+    let linePoints = 0;
 
     if (result.cleared > 0) {
-      const linePoints = (pointsByCount[result.cleared] ?? 100 * result.cleared)
+      linePoints = (pointsByCount[result.cleared] ?? 100 * result.cleared)
         * this.scoreState.level;
       this.scoreState.linesCleared += result.cleared;
-      totalPoints += linePoints;
+    }
+
+    const totalPoints = bonusPoints + linePoints;
+
+    this.emit({ type: 'lock', positions: lockedPositions });
+
+    if (result.cleared > 0) {
+      this.emit({
+        type: 'lineClear',
+        count: result.cleared,
+        rows: fullRows,
+        points: linePoints,
+        boardBeforeClear,
+      });
     }
 
     if (totalPoints > 0) {

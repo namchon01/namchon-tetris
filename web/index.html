@@ -2,9 +2,28 @@
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#0f0f1a" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Tetris" />
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="description" content="아이폰에서 홈 화면에 추가해 실행하는 테트리스 웹앱" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
     <title>Namchon Tetris</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Nanum+Brush+Script&display=swap"
+    />
     <link rel="stylesheet" href="css/style.css" />
   </head>
   <body>
@@ -17,19 +36,21 @@
         <section class="panel">
           <div class="panel-header">
             <div class="title-block">
-              <h1>TETRIS</h1>
-              <div class="stats">
-                <div class="stat">
-                  <span class="label">SCORE</span>
-                  <span id="score" class="value">0</span>
-                </div>
-                <div class="stat">
-                  <span class="label">LEVEL</span>
-                  <span id="level" class="value">1 / 5</span>
-                </div>
-                <div class="stat">
-                  <span class="label">LINES</span>
-                  <span id="lines" class="value">0</span>
+              <div class="title-row">
+                <h1>TETRIS</h1>
+                <div class="stats">
+                  <div class="stat">
+                    <span class="label">SCORE</span>
+                    <span id="score" class="value">0</span>
+                  </div>
+                  <div class="stat">
+                    <span class="label">LEVEL</span>
+                    <span id="level" class="value">1 / 5</span>
+                  </div>
+                  <div class="stat">
+                    <span class="label">LINES</span>
+                    <span id="lines" class="value">0</span>
+                  </div>
                 </div>
               </div>
               <div class="level-progress">
@@ -49,16 +70,18 @@
           </div>
 
           <div class="controls">
-            <button class="control-btn" data-action="left" aria-label="왼쪽">◀</button>
-            <button class="control-btn" data-action="right" aria-label="오른쪽">▶</button>
-            <button class="control-btn" data-action="rotate" aria-label="회전">↻</button>
-            <button class="control-btn" data-action="down" aria-label="아래">↓</button>
-            <button class="control-btn wide" data-action="drop" aria-label="하드 드롭">DROP</button>
+            <button type="button" class="control-btn" data-action="left" aria-label="왼쪽">◀</button>
+            <button type="button" class="control-btn" data-action="right" aria-label="오른쪽">▶</button>
+            <button type="button" class="control-btn" data-action="rotate" aria-label="회전">↻</button>
+            <button type="button" class="control-btn" data-action="down" aria-label="아래">↓</button>
+            <button type="button" class="control-btn wide" data-action="drop" aria-label="하드 드롭">DROP</button>
           </div>
 
           <div class="actions">
-            <button id="pause-btn" class="action-btn">PAUSE</button>
-            <button id="restart-btn" class="action-btn">RESTART</button>
+            <button type="button" id="pause-btn" class="action-btn">PAUSE</button>
+            <button type="button" id="restart-btn" class="action-btn">RESTART</button>
+            <button type="button" id="sound-btn" class="action-btn sound" aria-label="효과음 켜기/끄기">🔊</button>
+            <button type="button" id="music-btn" class="action-btn sound" aria-label="배경음악 켜기/끄기">🎵</button>
           </div>
         </section>
       </main>
@@ -76,7 +99,7 @@
           <h2>GAME OVER</h2>
           <p>Score: <span id="final-score">0</span></p>
           <p class="hint" id="retry-hint">이전 레벨부터 다시 시작합니다</p>
-          <button id="play-again-btn" class="action-btn primary">PLAY AGAIN</button>
+          <button type="button" id="play-again-btn" class="action-btn primary">PLAY AGAIN</button>
         </div>
       </div>
 
@@ -85,7 +108,7 @@
           <h2>CLEAR!</h2>
           <p>5레벨을 모두 클리어했습니다</p>
           <p>Score: <span id="cleared-score">0</span></p>
-          <button id="cleared-restart-btn" class="action-btn primary">RESTART</button>
+          <button type="button" id="cleared-restart-btn" class="action-btn primary">RESTART</button>
         </div>
       </div>
     </div>
