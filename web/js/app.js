@@ -1,4 +1,4 @@
-import { GameEngine } from './gameEngine.js';
+import { GameEngine, MAX_LEVEL, LEVEL_CLEAR_SCORE } from './gameEngine.js';
 import { BOARD_ROWS, BOARD_COLS, BASE_OFFSETS, TETROMINO_COLORS } from './tetromino.js';
 import { sound } from './audio.js';
 import { music } from './music.js';
@@ -27,24 +27,36 @@ const nextCtx = nextCanvas.getContext('2d');
 const scoreEl = document.getElementById('score');
 const levelEl = document.getElementById('level');
 const linesEl = document.getElementById('lines');
+const levelScoreEl = document.getElementById('level-score');
+const levelProgressFill = document.getElementById('level-progress-fill');
 const pauseBtn = document.getElementById('pause-btn');
 const restartBtn = document.getElementById('restart-btn');
 const soundBtn = document.getElementById('sound-btn');
 const musicBtn = document.getElementById('music-btn');
 const pauseOverlay = document.getElementById('pause-overlay');
+const levelUpOverlay = document.getElementById('level-up-overlay');
+const levelUpText = document.getElementById('level-up-text');
 const gameOverOverlay = document.getElementById('game-over-overlay');
+const clearedOverlay = document.getElementById('cleared-overlay');
 const finalScoreEl = document.getElementById('final-score');
+const clearedScoreEl = document.getElementById('cleared-score');
+const retryHintEl = document.getElementById('retry-hint');
 const playAgainBtn = document.getElementById('play-again-btn');
+const clearedRestartBtn = document.getElementById('cleared-restart-btn');
 
 const engine = new GameEngine();
 const effects = new EffectsManager();
 music.getLevel = () => engine.scoreState.level;
 let dropTimer = null;
 let animationFrame = null;
+let levelUpHideTimer = null;
 
 const REPEATABLE = new Set(['left', 'right', 'down']);
 const HOLD_DELAY_MS = 220;
 const HOLD_INTERVAL_MS = 70;
+
+/** Actions that must not reset the gravity timer (keep falling while rotating/moving). */
+const NON_RESET_ACTIONS = new Set(['left', 'right', 'rotate']);
 
 const CLEAR_LABELS = { 1: 'SINGLE', 2: 'DOUBLE!', 3: 'TRIPLE!', 4: 'TETRIS!!' };
 
@@ -61,6 +73,11 @@ function scheduleDrop() {
 
 function restartDropLoop() {
   scheduleDrop();
+}
+
+function stopDropLoop() {
+  if (dropTimer) clearTimeout(dropTimer);
+  dropTimer = null;
 }
 
 function resizeBoard() {
@@ -81,7 +98,6 @@ function drawBlock(ctx, x, y, size, color, highlighted = false) {
   ctx.roundRect(x + padding, y + padding, size - padding * 2, size - padding * 2, radius);
   ctx.fill();
 
-  // Subtle top-light for a 3D feel
   const gloss = ctx.createLinearGradient(x, y, x, y + size);
   gloss.addColorStop(0, 'rgba(255, 255, 255, 0.28)');
   gloss.addColorStop(0.45, 'rgba(255, 255, 255, 0)');
@@ -103,18 +119,14 @@ const WATERMARK_FONT = '"Nanum Brush Script", "Segoe Script", cursive';
 
 function loadWatermarkFont() {
   if (!document.fonts?.load) return;
-  // Canvas text does not trigger webfont loading, so load it explicitly
-  // and repaint once the brush font is available.
   document.fonts.load(`80px ${WATERMARK_FONT}`, WATERMARK_TEXT).then(() => {
     render();
   }).catch(() => {});
 }
 
-// Faint doubled script watermark in the middle of the board.
 function drawWatermark(ctx, width, height) {
   ctx.save();
 
-  // Size the text so it spans ~90% of the board width regardless of font.
   const trial = 100;
   ctx.font = `${trial}px ${WATERMARK_FONT}`;
   const measured = ctx.measureText(WATERMARK_TEXT).width || trial;
@@ -125,7 +137,6 @@ function drawWatermark(ctx, width, height) {
   ctx.textBaseline = 'middle';
   ctx.font = `${fontSize}px ${WATERMARK_FONT}`;
 
-  // Back layer: slightly offset, rotated and larger — the "double" stroke.
   ctx.save();
   ctx.rotate(-0.1);
   ctx.globalAlpha = 0.05;
@@ -134,7 +145,6 @@ function drawWatermark(ctx, width, height) {
   ctx.fillText(WATERMARK_TEXT, fontSize * 0.06, fontSize * 0.1);
   ctx.restore();
 
-  // Front layer.
   ctx.rotate(-0.04);
   ctx.globalAlpha = 0.1;
   ctx.fillStyle = '#ffffff';
@@ -213,25 +223,50 @@ function renderNextPiece() {
   }
 }
 
+function showLevelUpToast() {
+  levelUpText.textContent = `LEVEL ${engine.scoreState.level}!`;
+  levelUpOverlay.classList.remove('hidden');
+
+  if (levelUpHideTimer) clearTimeout(levelUpHideTimer);
+  levelUpHideTimer = setTimeout(() => {
+    levelUpOverlay.classList.add('hidden');
+  }, 900);
+}
+
 function updateUI() {
-  scoreEl.textContent = engine.scoreState.score;
-  levelEl.textContent = engine.scoreState.level;
-  linesEl.textContent = engine.scoreState.linesCleared;
+  const { score, level, linesCleared, levelScore } = engine.scoreState;
+  const progress = Math.min(LEVEL_CLEAR_SCORE, levelScore);
+
+  scoreEl.textContent = score;
+  levelEl.textContent = `${level} / ${MAX_LEVEL}`;
+  linesEl.textContent = linesCleared;
+  levelScoreEl.textContent = `${progress} / ${LEVEL_CLEAR_SCORE}`;
+  levelProgressFill.style.width = `${(progress / LEVEL_CLEAR_SCORE) * 100}%`;
+
   pauseBtn.textContent = engine.phase === 'paused' ? 'RESUME' : 'PAUSE';
   soundBtn.textContent = sound.muted ? '🔇' : '🔊';
   musicBtn.textContent = '🎵';
   musicBtn.classList.toggle('off', !music.enabled);
   pauseOverlay.classList.toggle('hidden', engine.phase !== 'paused');
   gameOverOverlay.classList.toggle('hidden', engine.phase !== 'gameOver');
+  clearedOverlay.classList.toggle('hidden', engine.phase !== 'cleared');
 
   if (engine.phase === 'gameOver') {
-    finalScoreEl.textContent = engine.scoreState.score;
+    finalScoreEl.textContent = score;
+    const failed = engine.failedLevel ?? level;
+    const retryLevel = Math.max(1, failed - 1);
+    retryHintEl.textContent = failed === 1
+      ? '레벨 1부터 다시 시작합니다'
+      : `레벨 ${retryLevel}부터 다시 시작합니다`;
+  }
+
+  if (engine.phase === 'cleared') {
+    clearedScoreEl.textContent = score;
   }
 
   renderNextPiece();
 }
 
-// Haptic feedback on devices that support it (mostly Android).
 function vibrate(pattern) {
   try {
     navigator.vibrate?.(pattern);
@@ -280,16 +315,23 @@ function handleEvents() {
         sound.levelUp();
         effects.levelFlash();
         effects.scorePopup(`LEVEL ${event.level}!`, BOARD_ROWS / 3, BOARD_COLS / 2);
+        showLevelUpToast();
+        restartDropLoop();
         break;
       case 'gameOver':
         music.stop();
         sound.gameOver();
         vibrate([80, 60, 120]);
         effects.shake(9, 400);
+        stopDropLoop();
         break;
       default:
         break;
     }
+  }
+
+  if (engine.phase === 'cleared') {
+    stopDropLoop();
   }
 }
 
@@ -314,9 +356,12 @@ function render() {
   kickAnimation();
 }
 
-function afterAction() {
+function afterAction(action) {
   render();
-  restartDropLoop();
+  // Keep gravity running during rotate / left / right — do not reset the fall timer.
+  if (!NON_RESET_ACTIONS.has(action)) {
+    restartDropLoop();
+  }
 }
 
 function runAction(action) {
@@ -332,12 +377,23 @@ function runAction(action) {
 
   if (!actions[action]) return false;
   actions[action]();
-  afterAction();
+  afterAction(action);
   return true;
 }
 
-function restartGame() {
-  engine.reset();
+function restartFromLevelOne() {
+  stopDropLoop();
+  engine.reset(1);
+  effects.reset();
+  render();
+  restartDropLoop();
+  music.stop();
+  music.start();
+}
+
+function restartAfterFailure() {
+  stopDropLoop();
+  engine.restartAfterFailure();
   effects.reset();
   render();
   restartDropLoop();
@@ -396,7 +452,6 @@ function bindPointerControl(button, onPress) {
     if (pointerId !== null && event.pointerId === pointerId) endPress();
   });
 
-  // Prevent iOS long-press callout / context menu on controls
   button.addEventListener('contextmenu', (event) => event.preventDefault());
 }
 
@@ -423,7 +478,7 @@ function bindKeyboard() {
 
   window.addEventListener('keydown', (event) => {
     sound.unlock();
-    if (engine.phase === 'gameOver') return;
+    if (engine.phase === 'gameOver' || engine.phase === 'cleared') return;
 
     if (event.code === 'KeyP') {
       togglePause();
@@ -441,8 +496,6 @@ function bindKeyboard() {
 }
 
 function bindAudioUnlock() {
-  // iOS Safari only enables audio from inside a user gesture. touchend is
-  // the most reliable unlock event; keep listening until it succeeds.
   const tryUnlock = () => {
     sound.unlock();
     if (sound.unlocked) {
@@ -455,7 +508,6 @@ function bindAudioUnlock() {
   document.addEventListener('touchend', tryUnlock);
   document.addEventListener('pointerup', tryUnlock);
 
-  // Coming back from background can leave the context suspended.
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden && sound.ctx && sound.ctx.state !== 'running') {
       sound.ctx.resume();
@@ -464,7 +516,6 @@ function bindAudioUnlock() {
 }
 
 function bindMobileGuards() {
-  // Stop Safari rubber-band scroll while playing
   document.addEventListener(
     'touchmove',
     (event) => {
@@ -476,7 +527,6 @@ function bindMobileGuards() {
 
   document.addEventListener('gesturestart', (event) => event.preventDefault());
 
-  // Keep layout correct when iOS Safari chrome shows/hides
   window.visualViewport?.addEventListener('resize', resizeBoard);
   window.addEventListener('orientationchange', () => {
     setTimeout(resizeBoard, 250);
@@ -493,14 +543,14 @@ function registerServiceWorker() {
 }
 
 function togglePause() {
-  if (engine.phase === 'gameOver') return;
+  if (engine.phase === 'gameOver' || engine.phase === 'cleared') return;
   engine.togglePause();
   sound.pause();
   if (engine.phase === 'playing') {
     restartDropLoop();
     music.start();
   } else {
-    if (dropTimer) clearTimeout(dropTimer);
+    stopDropLoop();
     music.stop();
   }
   render();
@@ -513,12 +563,17 @@ pauseBtn.addEventListener('click', () => {
 
 restartBtn.addEventListener('click', () => {
   sound.unlock();
-  restartGame();
+  restartFromLevelOne();
 });
 
 playAgainBtn.addEventListener('click', () => {
   sound.unlock();
-  restartGame();
+  restartAfterFailure();
+});
+
+clearedRestartBtn.addEventListener('click', () => {
+  sound.unlock();
+  restartFromLevelOne();
 });
 
 soundBtn.addEventListener('click', () => {
