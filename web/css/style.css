@@ -61,17 +61,18 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 8px 16px 0;
+  padding: 4px 8px 0;
   min-height: 0;
   container-type: size;
 }
 
 #board {
-  /* ~20% smaller playfield. Prefer height so width stays auto and
-     aspect-ratio can shrink both axes together when capped. */
-  height: min(80%, 64vh, 80cqh);
-  width: auto;
-  max-width: min(80%, 336px, 74dvw);
+  /* Fill the mobile play area: as wide as the section allows while
+     keeping 10:20 so height still fits (width <= half of section height). */
+  width: min(100%, 92dvw, 45vh);
+  width: min(100%, 92dvw, calc(100cqh * 0.5));
+  height: auto;
+  max-width: 100%;
   aspect-ratio: 10 / 20;
   border-radius: 8px;
   background: var(--board);
