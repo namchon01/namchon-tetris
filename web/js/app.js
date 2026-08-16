@@ -166,40 +166,43 @@ function drawWatermark(ctx, width, height) {
 function renderBoard() {
   const width = boardCanvas.clientWidth;
   const height = boardCanvas.clientHeight;
-  const cellWidth = width / BOARD_COLS;
-  const cellHeight = height / BOARD_ROWS;
+  // Square cells from the smaller axis so blocks always match the grid,
+  // even if CSS momentarily breaks the 10:20 aspect ratio.
+  const cellSize = Math.min(width / BOARD_COLS, height / BOARD_ROWS);
+  const offsetX = (width - cellSize * BOARD_COLS) / 2;
+  const offsetY = (height - cellSize * BOARD_ROWS) / 2;
   const cells = engine.getRenderCells();
 
   boardCtx.clearRect(0, 0, width, height);
 
   const shake = effects.shakeOffset();
   boardCtx.save();
-  boardCtx.translate(shake.x, shake.y);
+  boardCtx.translate(shake.x + offsetX, shake.y + offsetY);
 
   for (let row = 0; row < BOARD_ROWS; row += 1) {
     for (let col = 0; col < BOARD_COLS; col += 1) {
-      const x = col * cellWidth;
-      const y = row * cellHeight;
+      const x = col * cellSize;
+      const y = row * cellSize;
 
       boardCtx.fillStyle = 'rgba(255, 255, 255, 0.03)';
       boardCtx.beginPath();
-      boardCtx.roundRect(x + 1, y + 1, cellWidth - 2, cellHeight - 2, 2);
+      boardCtx.roundRect(x + 1, y + 1, cellSize - 2, cellSize - 2, 2);
       boardCtx.fill();
     }
   }
 
-  drawWatermark(boardCtx, width, height);
+  drawWatermark(boardCtx, cellSize * BOARD_COLS, cellSize * BOARD_ROWS);
 
   for (let row = 0; row < BOARD_ROWS; row += 1) {
     for (let col = 0; col < BOARD_COLS; col += 1) {
       const color = cells[row][col];
       if (color) {
-        drawBlock(boardCtx, col * cellWidth, row * cellHeight, cellWidth, color);
+        drawBlock(boardCtx, col * cellSize, row * cellSize, cellSize, color);
       }
     }
   }
 
-  effects.draw(boardCtx, cellWidth, cellHeight, width, height);
+  effects.draw(boardCtx, cellSize, cellSize, cellSize * BOARD_COLS, cellSize * BOARD_ROWS);
   boardCtx.restore();
 }
 

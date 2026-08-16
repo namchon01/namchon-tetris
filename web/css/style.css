@@ -63,12 +63,15 @@ body {
   justify-content: center;
   padding: 8px 16px 0;
   min-height: 0;
+  container-type: size;
 }
 
 #board {
-  width: 80%;
-  max-width: min(336px, 64vh, 74dvw);
-  max-height: 80%;
+  /* ~20% smaller playfield. Prefer height so width stays auto and
+     aspect-ratio can shrink both axes together when capped. */
+  height: min(80%, 64vh, 80cqh);
+  width: auto;
+  max-width: min(80%, 336px, 74dvw);
   aspect-ratio: 10 / 20;
   border-radius: 8px;
   background: var(--board);
