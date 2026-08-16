@@ -63,13 +63,13 @@ body {
   justify-content: center;
   padding: 8px 16px 0;
   min-height: 0;
+  container-type: size;
 }
 
 #board {
-  /* 20% smaller playfield. Size from width only so aspect-ratio
-     keeps height in sync — max-height on a definite width left
-     blocks oversized against a shorter board on mobile. */
-  width: min(80%, 336px, 74dvw, 32vh);
+  /* 20% smaller playfield. Cap by width and by half the section
+     height so aspect-ratio stays locked and blocks scale with the board. */
+  width: min(80%, 336px, 74dvw, 32vh, 50cqh);
   height: auto;
   aspect-ratio: 10 / 20;
   border-radius: 8px;
