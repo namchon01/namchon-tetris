@@ -43,6 +43,8 @@ const clearedScoreEl = document.getElementById('cleared-score');
 const retryHintEl = document.getElementById('retry-hint');
 const playAgainBtn = document.getElementById('play-again-btn');
 const clearedRestartBtn = document.getElementById('cleared-restart-btn');
+const celebrationCanvas = document.getElementById('celebration-canvas');
+const celebrationCtx = celebrationCanvas.getContext('2d');
 
 const engine = new GameEngine();
 const effects = new EffectsManager();
@@ -80,12 +82,20 @@ function stopDropLoop() {
   dropTimer = null;
 }
 
+function resizeCelebrationCanvas() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 3);
+  celebrationCanvas.width = Math.max(1, Math.floor(window.innerWidth * dpr));
+  celebrationCanvas.height = Math.max(1, Math.floor(window.innerHeight * dpr));
+  celebrationCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
 function resizeBoard() {
   const rect = boardCanvas.getBoundingClientRect();
   const dpr = Math.min(window.devicePixelRatio || 1, 3);
   boardCanvas.width = Math.max(1, Math.floor(rect.width * dpr));
   boardCanvas.height = Math.max(1, Math.floor(rect.height * dpr));
   boardCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  resizeCelebrationCanvas();
   render();
 }
 
@@ -318,6 +328,13 @@ function handleEvents() {
         showLevelUpToast();
         restartDropLoop();
         break;
+      case 'cleared':
+        music.stop();
+        sound.fireworks();
+        effects.startFireworks();
+        celebrationCanvas.classList.remove('hidden');
+        stopDropLoop();
+        break;
       case 'gameOver':
         music.stop();
         sound.gameOver();
@@ -335,9 +352,23 @@ function handleEvents() {
   }
 }
 
+function drawCelebration() {
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+  celebrationCtx.clearRect(0, 0, width, height);
+
+  if (effects.celebrating) {
+    celebrationCanvas.classList.remove('hidden');
+    effects.drawFireworks(celebrationCtx, width, height);
+  } else {
+    celebrationCanvas.classList.add('hidden');
+  }
+}
+
 function animationLoop() {
   animationFrame = null;
   renderBoard();
+  drawCelebration();
   if (effects.active) {
     animationFrame = requestAnimationFrame(animationLoop);
   }
@@ -353,6 +384,7 @@ function render() {
   handleEvents();
   renderBoard();
   updateUI();
+  drawCelebration();
   kickAnimation();
 }
 
@@ -385,6 +417,7 @@ function restartFromLevelOne() {
   stopDropLoop();
   engine.reset(1);
   effects.reset();
+  celebrationCanvas.classList.add('hidden');
   render();
   restartDropLoop();
   music.stop();

@@ -155,6 +155,23 @@ class SoundManager {
     this.tone({ freq: 330, duration: 0.08, type: 'triangle', volume: 0.1 });
     this.tone({ freq: 262, duration: 0.1, type: 'triangle', volume: 0.1, delay: 0.09 });
   }
+
+  fireworks() {
+    [523, 659, 784, 1047].forEach((freq, i) => {
+      this.tone({ freq, duration: 0.16, type: 'triangle', volume: 0.16, delay: i * 0.08 });
+    });
+    [0, 0.35, 0.7, 1.1, 1.55, 2.05].forEach((delay) => {
+      this.noise({ duration: 0.22, volume: 0.16, delay });
+      this.tone({
+        freq: 180 + Math.random() * 80,
+        duration: 0.18,
+        type: 'sawtooth',
+        volume: 0.08,
+        delay,
+        slideTo: 60,
+      });
+    });
+  }
 }
 
 export const sound = new SoundManager();
