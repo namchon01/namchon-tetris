@@ -14,10 +14,17 @@ iOS 연습용 모바일 테트리스 앱 + **Windows/브라우저용 웹 버전*
 4. **Actions** 탭에서 `Deploy GitHub Pages` 워크플로가 성공했는지 확인합니다.
    - 안 돌았으면 Actions에서 해당 워크플로 → **Run workflow** 로 수동 실행합니다.
 
-배포가 끝나면 아래 주소로 접속할 수 있습니다.
+배포가 끝나면 **아래 전체 주소**로 접속하세요.  
+`https://namchon01.github.io` 만 열면 404가 납니다.
 
 ```
 https://namchon01.github.io/namchon-tetris/
+```
+
+또는 게임 파일이 바로 있는 주소:
+
+```
+https://namchon01.github.io/namchon-tetris/web/index.html
 ```
 
 아이폰 Safari에서 위 주소를 연 뒤, **공유 → 홈 화면에 추가** 하면 앱처럼 실행됩니다.
