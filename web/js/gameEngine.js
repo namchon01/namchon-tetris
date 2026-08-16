@@ -10,7 +10,8 @@ import {
 
 export const MAX_LEVEL = 5;
 export const LEVEL_CLEAR_SCORE = 2000;
-export const BASE_DROP_INTERVAL = 1000;
+/** Base gravity interval. 900ms is 10% faster than the original 1000ms. */
+export const BASE_DROP_INTERVAL = 900;
 /** Each level is 10% faster than the previous (interval × 0.9). */
 export const LEVEL_SPEED_FACTOR = 0.9;
 
@@ -201,6 +202,7 @@ export class GameEngine {
       this.activePiece = null;
       this.justClearedGame = true;
       this.emit({ type: 'levelUp', level: this.scoreState.level });
+      this.emit({ type: 'cleared' });
       return true;
     }
 

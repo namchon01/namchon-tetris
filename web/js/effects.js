@@ -4,6 +4,10 @@ function now() {
   return performance.now();
 }
 
+const FIREWORK_COLORS = [
+  '#ff4d6d', '#ffd166', '#06d6a0', '#4cc9f0', '#c77dff', '#ffffff', '#ff9f1c',
+];
+
 export class EffectsManager {
   constructor() {
     this.particles = [];
@@ -12,6 +16,10 @@ export class EffectsManager {
     this.shakeUntil = 0;
     this.shakeStrength = 0;
     this.levelFlashUntil = 0;
+    this.rockets = [];
+    this.sparks = [];
+    this.fireworksUntil = 0;
+    this.nextLaunchAt = 0;
   }
 
   get active() {
@@ -20,9 +28,16 @@ export class EffectsManager {
       this.particles.length > 0 ||
       this.rowFlashes.length > 0 ||
       this.popups.length > 0 ||
+      this.rockets.length > 0 ||
+      this.sparks.length > 0 ||
       t < this.shakeUntil ||
-      t < this.levelFlashUntil
+      t < this.levelFlashUntil ||
+      t < this.fireworksUntil
     );
+  }
+
+  get celebrating() {
+    return now() < this.fireworksUntil || this.rockets.length > 0 || this.sparks.length > 0;
   }
 
   burstRows(rows, cols, colorsByRow) {
@@ -62,12 +77,59 @@ export class EffectsManager {
     this.levelFlashUntil = now() + 500;
   }
 
+  startFireworks(duration = 5200) {
+    const t = now();
+    this.fireworksUntil = t + duration;
+    this.nextLaunchAt = t;
+    this.rockets = [];
+    this.sparks = [];
+  }
+
+  stopFireworks() {
+    this.fireworksUntil = 0;
+    this.rockets = [];
+    this.sparks = [];
+  }
+
   reset() {
     this.particles = [];
     this.rowFlashes = [];
     this.popups = [];
     this.shakeUntil = 0;
     this.levelFlashUntil = 0;
+    this.stopFireworks();
+  }
+
+  launchRocket(width, height) {
+    const color = FIREWORK_COLORS[Math.floor(Math.random() * FIREWORK_COLORS.length)];
+    this.rockets.push({
+      x: width * (0.12 + Math.random() * 0.76),
+      y: height + 8,
+      tx: width * (0.18 + Math.random() * 0.64),
+      ty: height * (0.12 + Math.random() * 0.38),
+      color,
+      start: now(),
+      duration: 420 + Math.random() * 280,
+    });
+  }
+
+  explode(x, y, color) {
+    const count = 42 + Math.floor(Math.random() * 28);
+    const t = now();
+    for (let i = 0; i < count; i += 1) {
+      const angle = (Math.PI * 2 * i) / count + Math.random() * 0.2;
+      const speed = 80 + Math.random() * 220;
+      this.sparks.push({
+        x,
+        y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        color: Math.random() > 0.25 ? color : '#ffffff',
+        start: t,
+        duration: 700 + Math.random() * 700,
+        size: 1.6 + Math.random() * 2.4,
+      });
+    }
   }
 
   shakeOffset() {
@@ -128,5 +190,57 @@ export class EffectsManager {
       ctx.fillStyle = `rgba(120, 220, 255, ${0.22 * (1 - progress)})`;
       ctx.fillRect(0, 0, boardWidth, boardHeight);
     }
+  }
+
+  /** Full-screen celebration fireworks (pixel coordinates). */
+  drawFireworks(ctx, width, height) {
+    const t = now();
+
+    if (t < this.fireworksUntil && t >= this.nextLaunchAt) {
+      const burstCount = 1 + (Math.random() > 0.55 ? 1 : 0);
+      for (let i = 0; i < burstCount; i += 1) {
+        this.launchRocket(width, height);
+      }
+      this.nextLaunchAt = t + 180 + Math.random() * 220;
+    }
+
+    this.rockets = this.rockets.filter((rocket) => {
+      const progress = Math.min(1, (t - rocket.start) / rocket.duration);
+      const eased = 1 - (1 - progress) ** 2;
+      const x = rocket.x + (rocket.tx - rocket.x) * eased;
+      const y = rocket.y + (rocket.ty - rocket.y) * eased;
+
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = rocket.color;
+      ctx.beginPath();
+      ctx.arc(x, y, 2.4, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.globalAlpha = 0.35;
+      ctx.beginPath();
+      ctx.arc(x, y + 10, 1.6, 0, Math.PI * 2);
+      ctx.fill();
+
+      if (progress >= 1) {
+        this.explode(rocket.tx, rocket.ty, rocket.color);
+        return false;
+      }
+      return true;
+    });
+
+    this.sparks = this.sparks.filter((spark) => t - spark.start < spark.duration);
+    for (const spark of this.sparks) {
+      const age = (t - spark.start) / 1000;
+      const progress = (t - spark.start) / spark.duration;
+      const x = spark.x + spark.vx * age;
+      const y = spark.y + spark.vy * age + 140 * age * age;
+
+      ctx.globalAlpha = 1 - progress * progress;
+      ctx.fillStyle = spark.color;
+      ctx.beginPath();
+      ctx.arc(x, y, spark.size * (1 - progress * 0.4), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
   }
 }
