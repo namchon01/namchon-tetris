@@ -66,9 +66,11 @@ body {
 }
 
 #board {
-  width: 80%;
-  max-width: min(336px, 64vh, 74dvw);
-  max-height: 80%;
+  /* 20% smaller playfield. Size from width only so aspect-ratio
+     keeps height in sync — max-height on a definite width left
+     blocks oversized against a shorter board on mobile. */
+  width: min(80%, 336px, 74dvw, 32vh);
+  height: auto;
   aspect-ratio: 10 / 20;
   border-radius: 8px;
   background: var(--board);
