@@ -10,8 +10,8 @@ final class GameEngine {
 
     /// Base gravity interval in seconds.
     private static let baseDropInterval: TimeInterval = 1.0
-    /// Each level is 10% faster than the previous (interval × 0.9).
-    private static let levelSpeedFactor = 0.9
+    /// Each level is 20% faster than the previous (interval × 0.8).
+    private static let levelSpeedFactor = 0.8
 
     var dropInterval: TimeInterval {
         let level = max(1, scoreState.level)
