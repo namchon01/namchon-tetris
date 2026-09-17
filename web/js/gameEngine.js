@@ -12,8 +12,8 @@ export const MAX_LEVEL = 5;
 export const LEVEL_CLEAR_SCORE = 2000;
 /** Base gravity interval. 900ms is 10% faster than the original 1000ms. */
 export const BASE_DROP_INTERVAL = 900;
-/** Each level is 10% faster than the previous (interval × 0.9). */
-export const LEVEL_SPEED_FACTOR = 0.9;
+/** Each level is 20% faster than the previous (interval × 0.8). */
+export const LEVEL_SPEED_FACTOR = 0.8;
 
 const WALL_KICK_OFFSETS = [
   [0, 0], [0, -1], [0, 1], [-1, 0], [1, 0], [0, -2], [0, 2],

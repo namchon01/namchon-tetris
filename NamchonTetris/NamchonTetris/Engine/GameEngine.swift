@@ -8,10 +8,17 @@ final class GameEngine {
     private(set) var phase: GamePhase = .ready
     private(set) var scoreState = ScoreState()
 
+    /// Base gravity interval in seconds.
+    private static let baseDropInterval: TimeInterval = 1.0
+    /// Each level is 20% faster than the previous (interval × 0.8).
+    private static let levelSpeedFactor = 0.8
+
     var dropInterval: TimeInterval {
-        let base: TimeInterval = 1.0
-        let reduction = Double(scoreState.level - 1) * 0.08
-        return max(0.08, base - reduction)
+        let level = max(1, scoreState.level)
+        return max(
+            0.08,
+            Self.baseDropInterval * pow(Self.levelSpeedFactor, Double(level - 1))
+        )
     }
 
     func start() {
